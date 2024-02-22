@@ -35,15 +35,6 @@ team_t team = {
     ""
 };
 
-/* DEFINE MACROS*/
-
-#define WORDSIZE 4
-#define DOUBLESIZE 8
-
-#define MAX(x,y) (x > y ? x : y)
-
-
-
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
 

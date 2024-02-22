@@ -1,4 +1,7 @@
-!*.c
+!.c
 !*.h
 !*.rep
 *.json
+*.o
+*.d
+.cache/
