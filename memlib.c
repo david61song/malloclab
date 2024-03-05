@@ -1,6 +1,6 @@
 /*
- * memlib.c - a module that simulates the memory system.  Needed because it 
- *            allows us to interleave calls from the student's malloc package 
+ * memlib.c - a module that simulates the memory system.  Needed because it
+ *            allows us to interleave calls from the student's malloc package
  *            with the system's malloc package in libc.
  */
 #include <stdio.h>
@@ -17,9 +17,9 @@
 /* private variables */
 static char *mem_start_brk;  /* points to first byte of heap */
 static char *mem_brk;        /* points to last byte of heap */
-static char *mem_max_addr;   /* largest legal heap address */ 
+static char *mem_max_addr;   /* largest legal heap address */
 
-/* 
+/*
  * mem_init - initialize the memory system model
  */
 void mem_init(void)
@@ -32,9 +32,10 @@ void mem_init(void)
 
     mem_max_addr = mem_start_brk + MAX_HEAP;  /* max legal heap address */
     mem_brk = mem_start_brk;                  /* heap is empty initially */
+    printf("simulated heap memory end: %p, memory start addr : %p\n", mem_max_addr, mem_brk);
 }
 
-/* 
+/*
  * mem_deinit - free the storage used by the memory system model
  */
 void mem_deinit(void)
@@ -50,12 +51,12 @@ void mem_reset_brk()
     mem_brk = mem_start_brk;
 }
 
-/* 
- * mem_sbrk - simple model of the sbrk function. Extends the heap 
+/*
+ * mem_sbrk - simple model of the sbrk function. Extends the heap
  *    by incr bytes and returns the start address of the new area. In
  *    this model, the heap cannot be shrunk.
  */
-void *mem_sbrk(int incr) 
+void * mem_sbrk(int incr)
 {
     char *old_brk = mem_brk;
 
@@ -76,7 +77,7 @@ void *mem_heap_lo()
     return (void *)mem_start_brk;
 }
 
-/* 
+/*
  * mem_heap_hi - return address of last heap byte
  */
 void *mem_heap_hi()
@@ -87,7 +88,7 @@ void *mem_heap_hi()
 /*
  * mem_heapsize() - returns the heap size in bytes
  */
-size_t mem_heapsize() 
+size_t mem_heapsize()
 {
     return (size_t)(mem_brk - mem_start_brk);
 }
