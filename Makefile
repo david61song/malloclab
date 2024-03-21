@@ -5,7 +5,7 @@ TEAM = david61song
 VERSION = 1
 HANDINDIR = handme
 CC = clang
-CFLAGS = -Wall -arch x86_64 
+CFLAGS = -Wall -arch x86_64
 
 OBJS = mdriver.o mm.o memlib.o fsecs.o fcyc.o clock.o ftimer.o
 

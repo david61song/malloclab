@@ -44,6 +44,7 @@ team_t team = {
 /* defines macro */
 
 #define MAX(x,y) (x > y ? x : y)
+#define ABS(x) (x > 0 ? x : x * -1)
 
 #define GET(p) (*(uint64_t *)(p)) // deref
 #define GET_SIZE(p) (GET(p) & ~0x7) // *(p) && (0x11111.....000) -> Only Get size
@@ -194,6 +195,7 @@ void *coalesce(void *bp)
 
 
 /* first -fit finding memory block */
+
 void *first_fit(size_t request_size){
     char *curr = heap_listp;
 
@@ -209,6 +211,25 @@ void *first_fit(size_t request_size){
     else
         return (void *) curr;
 }
+
+/* best - fit finding memory block */
+void *best_fit(size_t request_size){
+    char *curr = heap_listp;
+    char *bp_val = (void *) 0;
+    uint64_t gap = UINT64_MAX;
+
+    while (GET_SIZE(HDRP(curr)) > 0){
+        if (GET_SIZE(HDRP(curr)) >= request_size && (!CHECK(HDRP(curr)))){
+            if (gap > ALIGN(ABS(request_size - GET_SIZE(HDRP(curr))))){
+                bp_val = curr;
+                gap = ALIGN(ABS(request_size - GET_SIZE(HDRP(curr))));
+            }
+        }
+        curr = NEXT_BLKP(curr);
+    }
+    return (void *) bp_val;
+}
+
 
 /*  alloc_size would be aligned value */
 void place(void *bp, size_t alloc_size) {
@@ -250,7 +271,7 @@ void *mm_malloc(size_t size) {
 
 
     /* Search the free list for a fit */
-    if ((bp = first_fit(alloc_size)) != NULL) {
+    if ((bp = best_fit(alloc_size)) != NULL) {
         place(bp, alloc_size);
         return bp;
     }
