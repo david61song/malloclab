@@ -88,3 +88,33 @@ To get a list of the driver flags:
 
 	unix> mdriver -h
 ```
+
+# PERF index
+
+## first_fit
+
+```text
+Team Name:david61song
+Member 1 :david song:none@none.none
+Using default tracefiles in traces/
+Measuring performance with gettimeofday().
+
+Results for mm malloc:
+trace  valid  util     ops      secs  Kops
+ 0       yes   98%    5694  0.010454   545
+ 1       yes   99%    5848  0.009309   628
+ 2       yes   99%    6648  0.017281   385
+ 3       yes   99%    5380  0.013588   396
+ 4       yes   66%   14400  0.000284 50633
+ 5       yes   92%    4800  0.006823   704
+ 6       yes   91%    4800  0.006235   770
+ 7       yes   54%   12000  0.173194    69
+ 8       yes   47%   24000  0.233843   103
+ 9       yes   27%   14401  0.058287   247
+10       yes   34%   14401  0.002562  5621
+Total          73%  112372  0.531860   211
+
+Perf index = 44 (util) + 14 (thru) = 58/100
+
+
+```

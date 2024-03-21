@@ -18,6 +18,7 @@
 #include "memlib.h"
 
 
+
 /*********************************************************
  * NOTE TO STUDENTS: Before you do anything else, please
  * provide your team information in the following struct.
@@ -53,8 +54,8 @@ team_t team = {
 #define SET(p) (PUT(p, PACK(GET_SIZE(p), 1))) // set allocation bit
 #define CLR(p) (PUT(p, PACK(GET_SIZE(p), 0))) // clear allocation bit
 
-#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
-#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
+#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE))) //always pointing (real - block start address)
+#define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) //always pointing (real - block start address)
 #define HDRP(bp) ((char *)bp - WSIZE) // returns header address
 #define FTRP(bp) ((char *)bp + GET_SIZE(HDRP(bp)) - DSIZE) // returns footer address
 
@@ -122,7 +123,7 @@ int mm_init(void) {
 }
 
 
-
+/* bp means "BLOCK POINTER" */
 void *extend_heap(size_t words)
 {
     char *bp;
@@ -141,7 +142,7 @@ void *extend_heap(size_t words)
     return coalesce(bp);
 
 /*
-   Heap Layout after Extending by 512 bytes:
+   Heap Layout after Extending by (512 words) (512 * 8 = 4096) bytes:
    | Offset | Content        | Description                |
    |--------|----------------|----------------------------|
    | 0      | [padding]      | Alignment padding          |
@@ -171,7 +172,7 @@ void *coalesce(void *bp)
     else if (prev_alloc && !next_alloc) { /* Case 2 */
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
-        PUT(FTRP(bp), PACK(size, 0));
+        PUT(FTRP(bp), PACK(size, 0)); //Footer size will be updated
     }
 
     else if (!prev_alloc && next_alloc) { /* Case 3 */
@@ -191,17 +192,41 @@ void *coalesce(void *bp)
     return bp;
 }
 
-void *find_fit(size_t size){
+
+/* first -fit finding memory block */
+void *first_fit(size_t request_size){
     char *curr = heap_listp;
 
-    while (GET_SIZE(curr) != 0){
+    while (GET_SIZE(HDRP(curr)) > 0){
+        if (GET_SIZE(HDRP(curr)) >= request_size && (!CHECK(HDRP(curr)))){
+            break;
+        }
         curr = NEXT_BLKP(curr);
     }
 
-
-
-    return (void *) curr;
+    if (GET_SIZE(HDRP(curr)) <= 0) // cannot find block
+        return (void *) 0;
+    else
+        return (void *) curr;
 }
+
+/*  alloc_size would be aligned value */
+void place(void *bp, size_t alloc_size) {
+    size_t curr_size = GET_SIZE(HDRP(bp));
+
+    if (curr_size - alloc_size <= WSIZE){
+        PUT(HDRP(bp), PACK(curr_size, 1));
+        PUT(FTRP(bp), PACK(curr_size, 1));
+        return ;
+    }
+
+    PUT(HDRP(bp), PACK(alloc_size, 1));
+    PUT(FTRP(bp), PACK(alloc_size, 1));
+    bp = NEXT_BLKP(bp);
+    PUT(HDRP(bp), PACK(curr_size - alloc_size, 0));
+    PUT(FTRP(bp), PACK(curr_size - alloc_size, 0));
+}
+
 
 /*
  * mm_malloc - Allocate a block by incrementing the brk pointer.
@@ -209,7 +234,7 @@ void *find_fit(size_t size){
  */
 
 void *mm_malloc(size_t size) {
-    size_t asize; /* Adjusted block size */
+    size_t alloc_size; /* Adjusted block size */
     size_t extendsize; /* Amount to extend heap if no fit */
     char *bp;
 
@@ -219,21 +244,22 @@ void *mm_malloc(size_t size) {
 
     /* Adjust block size to include overhead and alignment reqs. */
     if (size <= DSIZE)
-        asize = 2*DSIZE;
+        alloc_size = 2 * DSIZE;
     else
-        asize = DSIZE * ((size + (DSIZE) + (DSIZE-1)) / DSIZE);
+        alloc_size = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
+
 
     /* Search the free list for a fit */
-    if ((bp = find_fit(asize)) != NULL) {
-        place(bp, asize);
+    if ((bp = first_fit(alloc_size)) != NULL) {
+        place(bp, alloc_size);
         return bp;
     }
 
     /* No fit found. Get more memory and place the block */
-    extendsize = MAX(asize,CHUNKSIZE);
-    if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
+    extendsize = MAX(alloc_size,CHUNKSIZE);
+    if ((bp = extend_heap(extendsize / WSIZE)) == NULL)
         return NULL;
-    place(bp, asize);
+    place(bp, alloc_size);
     return bp;
 }
 
