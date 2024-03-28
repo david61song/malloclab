@@ -138,7 +138,7 @@ static void app_error(char *msg);
 int main(int argc, char **argv)
 {
     int i;
-    char c;
+    int c; //should be fixed (not char type)
     char **tracefiles = NULL;  /* null-terminated array of trace file names */
     int num_tracefiles = 0;    /* the number of traces in that array */
     trace_t *trace = NULL;     /* stores a single trace file in memory */

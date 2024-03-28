@@ -85,8 +85,8 @@ static char *start = 0;
 [] -> 8 byte
 [prologue][header][][][][][footer]...[header][][][][][footer][eplilogue]
 */
-void *extend_heap(size_t words);
-void *coalesce(void *bp);
+static void *extend_heap(size_t words);
+static void *coalesce(void *bp);
 
 
 
@@ -125,7 +125,7 @@ int mm_init(void) {
 
 
 /* bp means "BLOCK POINTER" */
-void *extend_heap(size_t words)
+static void *extend_heap(size_t words)
 {
     char *bp;
     size_t size;
@@ -136,6 +136,8 @@ void *extend_heap(size_t words)
         return NULL;
 
     PUT(HDRP(bp), PACK(size, 0)); /* Free block header (old epilogue eliminated) */
+    PUT(HDRP(bp) + WSIZE, 0); /* pred pointer*/
+    PUT(HDRP(bp) + WSIZE * 2, 0); /* successor pointer */
     PUT(FTRP(bp), PACK(size, 0)); /* Free block footer (move backward by size), 0 means not allocated!*/
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
 
@@ -160,7 +162,7 @@ void *extend_heap(size_t words)
 
 }
 
-void *coalesce(void *bp)
+static void *coalesce(void *bp)
 {
     size_t prev_alloc = CHECK(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = CHECK(HDRP(NEXT_BLKP(bp)));
@@ -196,7 +198,7 @@ void *coalesce(void *bp)
 
 /* first -fit finding memory block */
 
-void *first_fit(size_t request_size){
+static void *first_fit(size_t request_size){
     char *curr = heap_listp;
 
     while (GET_SIZE(HDRP(curr)) > 0){
@@ -212,30 +214,12 @@ void *first_fit(size_t request_size){
         return (void *) curr;
 }
 
-/* best - fit finding memory block */
-void *best_fit(size_t request_size){
-    char *curr = heap_listp;
-    char *bp_val = (void *) 0;
-    uint64_t gap = UINT64_MAX;
-
-    while (GET_SIZE(HDRP(curr)) > 0){
-        if (GET_SIZE(HDRP(curr)) >= request_size && (!CHECK(HDRP(curr)))){
-            if (gap > ALIGN(ABS(request_size - GET_SIZE(HDRP(curr))))){
-                bp_val = curr;
-                gap = ALIGN(ABS(request_size - GET_SIZE(HDRP(curr))));
-            }
-        }
-        curr = NEXT_BLKP(curr);
-    }
-    return (void *) bp_val;
-}
-
 
 /*  alloc_size would be aligned value */
-void place(void *bp, size_t alloc_size) {
+static void place(void *bp, size_t alloc_size) {
     size_t curr_size = GET_SIZE(HDRP(bp));
 
-    if (curr_size - alloc_size <= WSIZE){
+    if (curr_size - alloc_size <= WSIZE){ // if request size is close enough to current block size
         PUT(HDRP(bp), PACK(curr_size, 1));
         PUT(FTRP(bp), PACK(curr_size, 1));
         return ;
@@ -271,7 +255,7 @@ void *mm_malloc(size_t size) {
 
 
     /* Search the free list for a fit */
-    if ((bp = best_fit(alloc_size)) != NULL) {
+    if ((bp = first_fit(alloc_size)) != NULL) {
         place(bp, alloc_size);
         return bp;
     }
