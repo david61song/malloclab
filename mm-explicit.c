@@ -30,14 +30,6 @@ team_t team = {
 
 
 
-
-
-
-
-
-
-
-
 */
 
 /* defines size */
@@ -63,13 +55,15 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) //always pointing (real - block start address)
 #define HDRP(bp) ((char *)bp - WSIZE) // returns header address
 #define FTRP(bp) ((char *)bp + GET_SIZE(HDRP(bp)) - DSIZE) // returns footer address
-#define GET_NEXT(bp) ((void *) ((void **)((char *)bp + WSIZE)))
-#define GET_PREV(bp) ((void *) ((void **)((char *)bp + 2 * WSIZE)))
+#define GET_NEXT_P(bp) ((void *) ((void **)((char *)bp + WSIZE)))
+#define GET_PREV_P(bp) ((void *) ((void **)((char *)bp + 2 * WSIZE)))
 
 
 
 /* global variables */
 static char *heap_listp = 0;
+
+/* start address of root node */
 static char *start = 0;
 
 /* single word (4) or double word (8) alignment */
@@ -81,15 +75,14 @@ static char *start = 0;
     ALIGN(7) -> 8
     ALIGN(6) -> 8
 */
-#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+
 /*
     size_t -> system's maximum data size type
     SIZE_T_SIZE aligned size of size_t
 */
-/*
-[] -> 8 byte
-[prologue][header][][][][][footer]...[header][][][][][footer][eplilogue]
-*/
+
+#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
 
@@ -98,23 +91,35 @@ static void *coalesce(void *bp);
 
 int mm_init(void) {
     /* Initialize an empty heap */
-    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
+    if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1)
         return -1;
-    start = heap_listp;
 
     /* Set up the heap with initial padding, prologue, and epilogue blocks */
     PUT(heap_listp, 0);                            // Alignment padding
-    PUT(heap_listp + (1 * WSIZE), PACK(2 * WSIZE, 1)); // Prologue header: size=8, allocated=1
-    PUT(heap_listp + (2 * WSIZE), PACK(2 * WSIZE, 1)); // Prologue footer: size=8, allocated=1
-    PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     // Epilogue header: size=0, allocated=1
-    heap_listp += (2 * WSIZE);                     // Position heap pointer after prologue
+    PUT(heap_listp + (1 * WSIZE), PACK(4 * WSIZE, 1)); // Prologue header: size= 32, allocated=1
+    PUT(heap_listp + (2 * WSIZE), 0);                  // Prev pointer
+    PUT(heap_listp + (3 * WSIZE), 0);                  // Next pointer
+    PUT(heap_listp + (4 * WSIZE), PACK(4 * WSIZE, 1)); // Prologue footer: size= 32, allocated=1
+    PUT(heap_listp + (5 * WSIZE), PACK(0, 1));     // Epilogue header: size=0, allocated=1
+    heap_listp += (3 * WSIZE);                     // Pointing Next area
 
     /* Extend the heap with a free block to start */
     if (extend_heap(CHUNKSIZE / WSIZE) == (void *) 0)
         return -1;
     return 0;
 
-
+    /*
+    Initial Heap diagram
+    0          8              16              24              32              40              48
+    +----------+---------------+---------------+---------------+---------------+---------------+---------------+
+    | padding  | prologue hdr  |     prev      |     next      | prologue ftr  |   epilogue    |               |
+    |          |     32/1      |      0        |       0       |     32/1      |     0/1       |               |
+    +----------+---------------+---------------+---------------+---------------+---------------+---------------+
+                                               |                                               |
+                                               |                                               |
+                                               |                                               |
+                                          heap_list_p                                         brk
+    */
 }
 
 
@@ -131,7 +136,8 @@ static void *extend_heap(size_t words)
 
     PUT(HDRP(bp), PACK(size, 0)); /* Free block header (old epilogue eliminated) */
     PUT(HDRP(bp) + WSIZE, 0);     /* Prev pointer */
-    PUT(HDRP(bp) + 2 * WSIZE, 0); /* Next pointer*/
+    *(uint64_t *)heap_listp = (uint64_t) (HDRP(bp) + WSIZE); // heap_list start points new block
+    PUT(HDRP(bp) + 2 * WSIZE, 0); /* Next pointer sets to NULL */
     PUT(FTRP(bp), PACK(size, 0)); /* Free block footer (move backward by size), 0 means not allocated!*/
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
 
@@ -144,37 +150,39 @@ static void *extend_heap(size_t words)
     1: extending heap by (sbrk)
     2: free'ing
 */
+
 static void *coalesce(void *bp)
 {
     size_t prev_alloc = CHECK(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = CHECK(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
 
-   /*case 1*/
+    if (prev_alloc && next_alloc) { /* Case 1 */
+        return bp;
+    }
 
+    else if (prev_alloc && !next_alloc) { /* Case 2 */
+        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+        PUT(HDRP(bp), PACK(size, 0));
+        PUT(FTRP(bp), PACK(size, 0)); //Footer size will be updated
+    }
 
+    else if (!prev_alloc && next_alloc) { /* Case 3 */
+        size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+        PUT(FTRP(bp), PACK(size, 0));
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+        bp = PREV_BLKP(bp);
+    }
 
-
-
-   /*case 2*/
-
-
-
-
-
-   /*case 3*/
-
-
-
-
-
-
-
-   /*case 4*/
+    else { /* Case 4 */
+        size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+        bp = PREV_BLKP(bp);
+    }
 
     return bp;
 }
-
 
 /* first -fit finding memory block */
 
