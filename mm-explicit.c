@@ -2,7 +2,6 @@
  * mm-explicit.c - The fastest, least memory-efficient malloc package.
  *
  * In this approach
- *
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,12 +11,6 @@
 #include "mm.h"
 #include "memlib.h"
 
-
-
-/*********************************************************
- * NOTE TO STUDENTS: Before you do anything else, please
- * provide your team information in the following struct.
- ********************************************************/
 team_t team = {
     /* Team name */
     "david61song",
@@ -30,6 +23,22 @@ team_t team = {
     /* Second member's email address (leave blank if none) */
     ""
 };
+
+/*
+
+* why we need boundary tag? --> for coalescing.
+
+
+
+
+
+
+
+
+
+
+
+*/
 
 /* defines size */
 #define WSIZE 8 // 64-bit version
@@ -54,7 +63,8 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) //always pointing (real - block start address)
 #define HDRP(bp) ((char *)bp - WSIZE) // returns header address
 #define FTRP(bp) ((char *)bp + GET_SIZE(HDRP(bp)) - DSIZE) // returns footer address
-
+#define GET_NEXT(bp) ((void *) ((void **)((char *)bp + WSIZE)))
+#define GET_PREV(bp) ((void *) ((void **)((char *)bp + 2 * WSIZE)))
 
 
 
@@ -94,8 +104,8 @@ int mm_init(void) {
 
     /* Set up the heap with initial padding, prologue, and epilogue blocks */
     PUT(heap_listp, 0);                            // Alignment padding
-    PUT(heap_listp + (1 * WSIZE), PACK(WSIZE, 1)); // Prologue header: size=8, allocated=1
-    PUT(heap_listp + (2 * WSIZE), PACK(WSIZE, 1)); // Prologue footer: size=8, allocated=1
+    PUT(heap_listp + (1 * WSIZE), PACK(2 * WSIZE, 1)); // Prologue header: size=8, allocated=1
+    PUT(heap_listp + (2 * WSIZE), PACK(2 * WSIZE, 1)); // Prologue footer: size=8, allocated=1
     PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     // Epilogue header: size=0, allocated=1
     heap_listp += (2 * WSIZE);                     // Position heap pointer after prologue
 
@@ -104,17 +114,6 @@ int mm_init(void) {
         return -1;
     return 0;
 
-/*
-   Heap Layout at Initialization:
-   | Offset | Content   | Description         |
-   |--------|-----------|---------------------|
-   | 0      | [padding] | Alignment padding   |
-   | 8      | [8/1]     | Prologue header     |
-   | 16     | [8/1]     | Prologue footer     |
-   | 24     | [0/1]     | Epilogue header     |
-   | 32     | 0         | end of heap(brk)    |
-   Note: [size/allocated flag], measured in bytes
-*/
 
 }
 
@@ -131,61 +130,47 @@ static void *extend_heap(size_t words)
         return NULL;
 
     PUT(HDRP(bp), PACK(size, 0)); /* Free block header (old epilogue eliminated) */
-    PUT(HDRP(bp) + WSIZE, 0); /* pred pointer*/
-    PUT(HDRP(bp) + WSIZE * 2, 0); /* successor pointer */
+    PUT(HDRP(bp) + WSIZE, 0);     /* Prev pointer */
+    PUT(HDRP(bp) + 2 * WSIZE, 0); /* Next pointer*/
     PUT(FTRP(bp), PACK(size, 0)); /* Free block footer (move backward by size), 0 means not allocated!*/
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
 
     /* Coalesce if the previous block was free */
     return coalesce(bp);
 
-/*
-   Heap Layout after Extending by (512 words) (512 * 8 = 4096) bytes:
-   | Offset | Content        | Description                |
-   |--------|----------------|----------------------------|
-   | 0      | [padding]      | Alignment padding          |
-   | 8      | [8/1]          | Prologue header            |
-   | 16     | [8/1]          | Prologue footer            |
-   | 24     | [4096/0]       | Free block header          |
-   | 32     | ...            | Free block payload  ...    |
-   | 4112   | [4096/0]       | Free block footer          |
-   | 4120   | [0/1]          | New epilogue header        |
-   | 4128   |  0             | end of the heap (brk)      |
-   Note: [size/allocated flag], measured in bytes.
-*/
-
-
 }
 
+/* coalesce() is called in case:
+    1: extending heap by (sbrk)
+    2: free'ing
+*/
 static void *coalesce(void *bp)
 {
     size_t prev_alloc = CHECK(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = CHECK(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
 
-    if (prev_alloc && next_alloc) { /* Case 1 */
-        return bp;
-    }
+   /*case 1*/
 
-    else if (prev_alloc && !next_alloc) { /* Case 2 */
-        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
-        PUT(HDRP(bp), PACK(size, 0));
-        PUT(FTRP(bp), PACK(size, 0)); //Footer size will be updated
-    }
 
-    else if (!prev_alloc && next_alloc) { /* Case 3 */
-        size += GET_SIZE(HDRP(PREV_BLKP(bp)));
-        PUT(FTRP(bp), PACK(size, 0));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);
-    }
 
-    else { /* Case 4 */
-        size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);
-    }
+
+
+   /*case 2*/
+
+
+
+
+
+   /*case 3*/
+
+
+
+
+
+
+
+   /*case 4*/
 
     return bp;
 }
@@ -294,17 +279,4 @@ void *mm_realloc(void *ptr, size_t size)
     mm_free(oldptr);
     return newptr;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 

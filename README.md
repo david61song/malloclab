@@ -19,17 +19,17 @@
 Main Files:
 ***********
 
-mm.{c,h}	
+mm.{c,h}
 	Your solution malloc package. mm.c is the file that you
 	will be handing in, and is the only file you should modify.
 
-mdriver.c	
+mdriver.c
 	The malloc driver that tests your mm.c file
 
 short{1,2}-bal.rep
-	Two tiny tracefiles to help you get started. 
+	Two tiny tracefiles to help you get started.
 
-Makefile	
+Makefile
 	Builds the driver
 
 **********************************
@@ -61,7 +61,7 @@ To get a list of the driver flags:
 
 # PERF index
 
-## first_fit
+## implicit_list
 
 ```text
 Team Name:david61song

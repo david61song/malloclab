@@ -1,11 +1,7 @@
 /*
  * mm-naive.c -
  *
- * In this naive approach, a block is allocated by simply incrementing
- * the brk pointer.  A block is pure payload. There are no headers or
- * footers.  Blocks are never coalesced or reused. Realloc is
- * implemented directly using mm_malloc and mm_free.
- *
+ * This approach using implicit malloc list.
  * NOTE TO STUDENTS: Replace this header comment with your own header
  * comment that gives a high level description of your solution.
  */
@@ -93,14 +89,14 @@ static void *coalesce(void *bp);
 
 int mm_init(void) {
     /* Initialize an empty heap */
-    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
+    if ((heap_listp = mem_sbrk(8 * WSIZE)) == (void *)-1)
         return -1;
     start = heap_listp;
 
     /* Set up the heap with initial padding, prologue, and epilogue blocks */
     PUT(heap_listp, 0);                            // Alignment padding
-    PUT(heap_listp + (1 * WSIZE), PACK(WSIZE, 1)); // Prologue header: size=8, allocated=1
-    PUT(heap_listp + (2 * WSIZE), PACK(WSIZE, 1)); // Prologue footer: size=8, allocated=1
+    PUT(heap_listp + (1 * WSIZE), PACK(2 * WSIZE, 1)); // Prologue header: size= 16, allocated=1
+    PUT(heap_listp + (2 * WSIZE), PACK(2 * WSIZE, 1)); // Prologue footer: size= 16, allocated=1
     PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     // Epilogue header: size=0, allocated=1
     heap_listp += (2 * WSIZE);                     // Position heap pointer after prologue
 
@@ -109,17 +105,6 @@ int mm_init(void) {
         return -1;
     return 0;
 
-/*
-   Heap Layout at Initialization:
-   | Offset | Content   | Description         |
-   |--------|-----------|---------------------|
-   | 0      | [padding] | Alignment padding   |
-   | 8      | [8/1]     | Prologue header     |
-   | 16     | [8/1]     | Prologue footer     |
-   | 24     | [0/1]     | Epilogue header     |
-   | 32     | 0         | end of heap(brk)    |
-   Note: [size/allocated flag], measured in bytes
-*/
 
 }
 
