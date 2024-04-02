@@ -55,8 +55,8 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) //always pointing (real - block start address)
 #define HDRP(bp) ((char *)bp - WSIZE) // returns header address
 #define FTRP(bp) ((char *)bp + GET_SIZE(HDRP(bp)) - DSIZE) // returns footer address
-#define GET_NEXT_P(bp) ((void *) ((void **)((char *)bp + WSIZE)))
-#define GET_PREV_P(bp) ((void *) ((void **)((char *)bp + 2 * WSIZE)))
+#define GET_PREV_P(bp) ((void *) ((void **)((char *)bp + WSIZE)))
+#define GET_NEXT_P(bp) ((void *) ((void **)((char *)bp + 2 * WSIZE)))
 
 
 
@@ -134,9 +134,8 @@ static void *extend_heap(size_t words)
     if ((uint64_t)(bp = mem_sbrk(size)) == -1)
         return NULL;
 
-    PUT(HDRP(bp), PACK(size, 0)); /* Free block header (old epilogue eliminated) */
-    PUT(HDRP(bp) + WSIZE, 0);     /* Prev pointer */
-    *(uint64_t *)heap_listp = (uint64_t) (HDRP(bp) + WSIZE); // heap_list start points new block
+    PUT(HDRP(bp), PACK(size, 0)); /* New free block header (old epilogue eliminated) */
+    PUT(HDRP(bp) + WSIZE, 0);     /* Prev pointer sets to NULL */
     PUT(HDRP(bp) + 2 * WSIZE, 0); /* Next pointer sets to NULL */
     PUT(FTRP(bp), PACK(size, 0)); /* Free block footer (move backward by size), 0 means not allocated!*/
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
@@ -145,6 +144,43 @@ static void *extend_heap(size_t words)
     return coalesce(bp);
 
 }
+
+/*
+
+
+Initial heap:
++-----------------------------------------------------------+
+| Address | Content                                          |
++---------+--------------------------------------------------+
+| 0       | padding (0/0)                                    |
+| 8       | prologue header (32/1)                           |
+| 16      | prev (0/0)                                       |
+| 24      | next (0/0)                                       |
+| 32      | prologue footer (32/1)                           |
+| 40      | epilogue header (0/1)                            |
++---------+--------------------------------------------------+
+
+
+
+After extend_heap(4096):
++-----------------------------------------------------------------------------------------------------------------------+
+| Address | Content                                                                                                    |
++---------+------------------------------------------------------------------------------------------------------------+
+| 0       | padding (0/0)                                                                                              |
+| 8       | prologue header (32/1)                                                                                     |
+| 16      | prev (0/0) - Pointer to the previous free block, here it's NULL because prologue block can't be free       |
+| 24      | next (0/0) - Pointer to the next free block, initially NULL as there is no free block following prologue   |
+| 32      | prologue footer (32/1) - Same as prologue header, marks end of the prologue block                          |
+| 40      | new free block header (4096/0) - Replaces old epilogue header                                              |
+| 48      | prev (0/0) - Pointer to the previous free block, NULL in this case                                         |
+| 56      | next (0/0) - Pointer to the next free block, NULL as this is the only free block                           |
+| ...     | payload (free space for user allocation) ...                                                               |
+| 4136    | new free block footer (4096/0) - Footer of the new free block                                              |
+| 4144    | epilogue header (0/1) - Marks the end of the heap, size 0 and allocated status                             |
++---------+------------------------------------------------------------------------------------------------------------+
+
+*/
+
 
 /* coalesce() is called in case:
     1: extending heap by (sbrk)
@@ -158,7 +194,9 @@ static void *coalesce(void *bp)
     size_t size = GET_SIZE(HDRP(bp));
 
     if (prev_alloc && next_alloc) { /* Case 1 */
-        return bp;
+        PUT(heap_listp, (uint64_t) bp); // Update heap_listp to point to the new free block's header
+        PUT(bp, (uint64_t) heap_listp); // Update new free block's prev to point back to heap_listp
+        PUT(bp + WSIZE, 0); // Set new free block's next to NULL
     }
 
     else if (prev_alloc && !next_alloc) { /* Case 2 */
