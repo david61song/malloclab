@@ -61,7 +61,7 @@ team_t team = {
 
 /* global variables */
 static char *heap_listp = 0;
-static char *start = 0;
+
 
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
@@ -89,9 +89,8 @@ static void *coalesce(void *bp);
 
 int mm_init(void) {
     /* Initialize an empty heap */
-    if ((heap_listp = mem_sbrk(8 * WSIZE)) == (void *)-1)
+    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
         return -1;
-    start = heap_listp;
 
     /* Set up the heap with initial padding, prologue, and epilogue blocks */
     PUT(heap_listp, 0);                            // Alignment padding
@@ -132,8 +131,8 @@ static void *extend_heap(size_t words)
    | Offset | Content        | Description                |
    |--------|----------------|----------------------------|
    | 0      | [padding]      | Alignment padding          |
-   | 8      | [8/1]          | Prologue header            |
-   | 16     | [8/1]          | Prologue footer            |
+   | 8      | [16/1]          | Prologue header           |
+   | 16     | [16/1]          | Prologue footer           |
    | 24     | [4096/0]       | Free block header          |
    | 32     | ...            | Free block payload  ...    |
    | 4112   | [4096/0]       | Free block footer          |
@@ -180,7 +179,6 @@ static void *coalesce(void *bp)
 
 
 /* first -fit finding memory block */
-
 static void *first_fit(size_t request_size){
     char *curr = heap_listp;
 
@@ -195,24 +193,6 @@ static void *first_fit(size_t request_size){
         return (void *) 0;
     else
         return (void *) curr;
-}
-
-/* best - fit finding memory block */
-static void *best_fit(size_t request_size){
-    char *curr = heap_listp;
-    char *bp_val = (void *) 0;
-    size_t gap = SIZE_T_SIZE;
-
-    while (GET_SIZE(HDRP(curr)) > 0){
-        if (GET_SIZE(HDRP(curr)) >= request_size && (!CHECK(HDRP(curr)))){
-            if (gap > ABS(request_size - GET_SIZE(HDRP(curr)))){
-                bp_val = curr;
-                gap = ABS(request_size - GET_SIZE(HDRP(curr)));
-            }
-        }
-        curr = NEXT_BLKP(curr);
-    }
-    return (void *) bp_val;
 }
 
 
