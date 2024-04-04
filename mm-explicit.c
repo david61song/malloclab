@@ -85,6 +85,12 @@ static char *heap_listp = 0;
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
+static void remove_free_block(void *bp);
+static void add_free_block(void *bp);
+
+
+
+
 
 
 
@@ -182,10 +188,38 @@ After extend_heap(4096):
 */
 
 
+/* remove free block pointer from linked list */
+static void remove_free_block(void *bp)
+{
+    void *prev_bp = GET_PREV_P(bp);
+    void *next_bp = GET_NEXT_P(bp);
+
+    PUT(GET_NEXT_P(prev_bp), (uint64_t) next_bp);
+    PUT(GET_PREV_P(next_bp), (uint64_t) prev_bp);
+    PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+    PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+
+
+    /* may not need, but more clarify */
+    PUT(GET_NEXT_P(bp), 0);
+    PUT(GET_PREV_P(bp), 0);
+
+
+}
+
+
+/* add free block pointer to linked list in first position */
+static void add_free_block(void *bp)
+{
+    /* needs to be implemented*/
+}
+
+
 /* coalesce() is called in case:
     1: extending heap by (sbrk)
     2: free'ing
 */
+
 
 static void *coalesce(void *bp)
 {
@@ -228,18 +262,19 @@ static void *coalesce(void *bp)
 }
 
 /* first -fit finding memory block */
+/* traversal through pointers*/
 
 static void *first_fit(size_t request_size){
     char *curr = heap_listp;
 
-    while (GET_SIZE(HDRP(curr)) > 0){
-        if (GET_SIZE(HDRP(curr)) >= request_size && (!CHECK(HDRP(curr)))){
+    while (curr != (void *) 0){
+        if (GET_SIZE(HDRP(curr)) >= request_size){
             break;
         }
-        curr = NEXT_BLKP(curr);
+        curr = GET_NEXT_P(curr);
     }
 
-    if (GET_SIZE(HDRP(curr)) <= 0) // cannot find block
+    if (GET_SIZE(HDRP(curr)) < request_size) // cannot find block
         return (void *) 0;
     else
         return (void *) curr;
