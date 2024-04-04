@@ -55,16 +55,16 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) //always pointing (real - block start address)
 #define HDRP(bp) ((char *)bp - WSIZE) // returns header address
 #define FTRP(bp) ((char *)bp + GET_SIZE(HDRP(bp)) - DSIZE) // returns footer address
-#define GET_PREV_P(bp) ((void *) ((void **)((char *)bp + WSIZE)))
-#define GET_NEXT_P(bp) ((void *) ((void **)((char *)bp + 2 * WSIZE)))
+#define GET_PREV_P(bp) ((void *) (bp))
+#define GET_NEXT_P(bp) ((void *) ((void **)((char *)bp + 1 * WSIZE)))
 
 
 
 /* global variables */
+
+/* heap_listp will be the root node */
 static char *heap_listp = 0;
 
-/* start address of root node */
-static char *start = 0;
 
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
@@ -194,15 +194,20 @@ static void *coalesce(void *bp)
     size_t size = GET_SIZE(HDRP(bp));
 
     if (prev_alloc && next_alloc) { /* Case 1 */
+        printf("Case 1!\n");
         PUT(heap_listp, (uint64_t) bp); // Update heap_listp to point to the new free block's header
         PUT(bp, (uint64_t) heap_listp); // Update new free block's prev to point back to heap_listp
         PUT(bp + WSIZE, 0); // Set new free block's next to NULL
     }
 
     else if (prev_alloc && !next_alloc) { /* Case 2 */
+        printf("Case 2!\n");
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0)); //Footer size will be updated
+        PUT((char *)bp + WSIZE, (uint64_t) GET_NEXT_P(heap_listp) + WSIZE); // Update new free block's next to point to the next of heap_listp(first block)
+        PUT(GET_NEXT_P(heap_listp), (uint64_t) bp); // Update the next of heap_listp (first block) to point to the new free block
+        PUT(bp, (uint64_t) heap_listp); // Update new free block's prev to point back to heap_listp
     }
 
     else if (!prev_alloc && next_alloc) { /* Case 3 */
