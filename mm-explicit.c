@@ -107,7 +107,7 @@ int mm_init(void) {
     PUT(heap_listp + (3 * WSIZE), 0);                  // Next pointer
     PUT(heap_listp + (4 * WSIZE), PACK(4 * WSIZE, 1)); // Prologue footer: size= 32, allocated=1
     PUT(heap_listp + (5 * WSIZE), PACK(0, 1));     // Epilogue header: size=0, allocated=1
-    heap_listp += (3 * WSIZE);                     // Pointing Next area
+    heap_listp += (2 * WSIZE);                     // Pointing Next area
 
     /* Extend the heap with a free block to start */
     if (extend_heap(CHUNKSIZE / WSIZE) == (void *) 0)
@@ -121,10 +121,10 @@ int mm_init(void) {
     | padding  | prologue hdr  |     prev      |     next      | prologue ftr  |   epilogue    |               |
     |          |     32/1      |      0        |       0       |     32/1      |     0/1       |               |
     +----------+---------------+---------------+---------------+---------------+---------------+---------------+
-                                               |                                               |
-                                               |                                               |
-                                               |                                               |
-                                          heap_list_p                                         brk
+                               |                                                               |
+                               |                                                               |
+                               |                                                               |
+                        heap_list_p                                                           brk
     */
 }
 
@@ -193,25 +193,33 @@ static void remove_free_block(void *bp)
 {
     void *prev_bp = GET_PREV_P(bp);
     void *next_bp = GET_NEXT_P(bp);
+    if (next_bp != NULL){
+        PUT(GET_NEXT_P(prev_bp), (uint64_t) next_bp);
+        PUT(GET_PREV_P(next_bp), (uint64_t) prev_bp);
+        PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+        PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+    }
 
-    PUT(GET_NEXT_P(prev_bp), (uint64_t) next_bp);
-    PUT(GET_PREV_P(next_bp), (uint64_t) prev_bp);
-    PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
-    PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
-
+    /* if we remove last block */
+    else{
+        PUT(GET_NEXT_P(prev_bp), 0);
+        PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+        PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+    }
 
     /* may not need, but more clarify */
     PUT(GET_NEXT_P(bp), 0);
     PUT(GET_PREV_P(bp), 0);
-
-
 }
 
 
 /* add free block pointer to linked list in first position */
 static void add_free_block(void *bp)
 {
-    /* needs to be implemented*/
+    PUT(GET_NEXT_P(bp), (uint64_t) GET_NEXT_P(heap_listp));
+    PUT(GET_PREV_P(bp), (uint64_t) heap_listp);
+    PUT(GET_PREV_P(GET_NEXT_P(bp)), (uint64_t) bp);
+    PUT(GET_NEXT_P(heap_listp), (uint64_t) bp);
 }
 
 
