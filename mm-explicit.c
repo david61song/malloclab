@@ -28,8 +28,6 @@ team_t team = {
 
 * why we need boundary tag? --> for coalescing.
 
-
-
 */
 
 /* defines size */
@@ -55,8 +53,8 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE))) //always pointing (real - block start address)
 #define HDRP(bp) ((char *)bp - WSIZE) // returns header address
 #define FTRP(bp) ((char *)bp + GET_SIZE(HDRP(bp)) - DSIZE) // returns footer address
-#define GET_PREV_P(bp) ((void *) (bp))
-#define GET_NEXT_P(bp) ((void *) ((void **)((char *)bp + 1 * WSIZE)))
+#define PREV_P_ADDR(bp) (void *) (*(uint64_t *) (bp))
+#define NEXT_P_ADDR(bp) (void *) (*(uint64_t *)((char *)bp + 1 * WSIZE))
 
 
 
@@ -89,12 +87,6 @@ static void remove_free_block(void *bp);
 static void add_free_block(void *bp);
 
 
-
-
-
-
-
-
 int mm_init(void) {
     /* Initialize an empty heap */
     if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1)
@@ -115,6 +107,7 @@ int mm_init(void) {
     return 0;
 
     /*
+
     Initial Heap diagram
     0          8              16              24              32              40              48
     +----------+---------------+---------------+---------------+---------------+---------------+---------------+
@@ -124,7 +117,7 @@ int mm_init(void) {
                                |                                                               |
                                |                                                               |
                                |                                                               |
-                        heap_list_p                                                           brk
+                            heap_list_p                                                       brk
     */
 }
 
@@ -132,6 +125,7 @@ int mm_init(void) {
 /* bp means "BLOCK POINTER" */
 static void *extend_heap(size_t words)
 {
+    printf("Extending heap...\n");
     char *bp;
     size_t size;
 
@@ -140,7 +134,7 @@ static void *extend_heap(size_t words)
     if ((uint64_t)(bp = mem_sbrk(size)) == -1)
         return NULL;
 
-    PUT(HDRP(bp), PACK(size, 0)); /* New free block header (old epilogue eliminated) */
+    PUT(HDRP(bp), PACK(size, 0)); /* New free block header (old epilogue header eliminated) */
     PUT(HDRP(bp) + WSIZE, 0);     /* Prev pointer sets to NULL */
     PUT(HDRP(bp) + 2 * WSIZE, 0); /* Next pointer sets to NULL */
     PUT(FTRP(bp), PACK(size, 0)); /* Free block footer (move backward by size), 0 means not allocated!*/
@@ -191,35 +185,44 @@ After extend_heap(4096):
 /* remove free block pointer from linked list */
 static void remove_free_block(void *bp)
 {
-    void *prev_bp = GET_PREV_P(bp);
-    void *next_bp = GET_NEXT_P(bp);
+    void *prev_bp = PREV_P_ADDR(bp);
+    void *next_bp = NEXT_P_ADDR(bp);
     if (next_bp != NULL){
-        PUT(GET_NEXT_P(prev_bp), (uint64_t) next_bp);
-        PUT(GET_PREV_P(next_bp), (uint64_t) prev_bp);
+        PUT(NEXT_P_ADDR(prev_bp), (uint64_t) next_bp);
+        PUT(PREV_P_ADDR(next_bp), (uint64_t) prev_bp);
         PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
         PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
     }
 
     /* if we remove last block */
     else{
-        PUT(GET_NEXT_P(prev_bp), 0);
+        PUT(NEXT_P_ADDR(prev_bp), 0);
+        PUT(bp, 0);
         PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
         PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 0));
     }
 
-    /* may not need, but more clarify */
-    PUT(GET_NEXT_P(bp), 0);
-    PUT(GET_PREV_P(bp), 0);
 }
 
 
 /* add free block pointer to linked list in first position */
+/* LIFO Implementation */
 static void add_free_block(void *bp)
 {
-    PUT(GET_NEXT_P(bp), (uint64_t) GET_NEXT_P(heap_listp));
-    PUT(GET_PREV_P(bp), (uint64_t) heap_listp);
-    PUT(GET_PREV_P(GET_NEXT_P(bp)), (uint64_t) bp);
-    PUT(GET_NEXT_P(heap_listp), (uint64_t) bp);
+    assert(bp != NULL);
+
+    /* if we add block to out list in first time */
+    if (NEXT_P_ADDR(bp) == NULL){
+       PUT(bp, (uint64_t) heap_listp);
+       PUT((void *)((char *)heap_listp + WSIZE), (uint64_t) bp);
+    }
+    /* else */
+    else{
+        PUT(NEXT_P_ADDR(bp), (uint64_t) NEXT_P_ADDR(heap_listp));
+        PUT(PREV_P_ADDR(bp), (uint64_t) heap_listp);
+        PUT(PREV_P_ADDR(NEXT_P_ADDR(bp)), (uint64_t) bp);
+        PUT(NEXT_P_ADDR(heap_listp), (uint64_t) bp);
+    }
 }
 
 
@@ -236,34 +239,32 @@ static void *coalesce(void *bp)
     size_t size = GET_SIZE(HDRP(bp));
 
     if (prev_alloc && next_alloc) { /* Case 1 */
-        printf("Case 1!\n");
-        PUT(heap_listp, (uint64_t) bp); // Update heap_listp to point to the new free block's header
-        PUT(bp, (uint64_t) heap_listp); // Update new free block's prev to point back to heap_listp
-        PUT(bp + WSIZE, 0); // Set new free block's next to NULL
+        printf("case 1 occurred!\n");
+        add_free_block(bp);
     }
 
-    else if (prev_alloc && !next_alloc) { /* Case 2 */
-        printf("Case 2!\n");
+    else if (prev_alloc && !next_alloc) { /* Case 2 - bp's next block is unallocated */
+        printf("Case 2! occurred!\n");
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
-        PUT(HDRP(bp), PACK(size, 0));
-        PUT(FTRP(bp), PACK(size, 0)); //Footer size will be updated
-        PUT((char *)bp + WSIZE, (uint64_t) GET_NEXT_P(heap_listp) + WSIZE); // Update new free block's next to point to the next of heap_listp(first block)
-        PUT(GET_NEXT_P(heap_listp), (uint64_t) bp); // Update the next of heap_listp (first block) to point to the new free block
-        PUT(bp, (uint64_t) heap_listp); // Update new free block's prev to point back to heap_listp
+        PUT(HDRP(bp), PACK(size, 0)); // Header size will be updated
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0)); // New Footer size will be updated
+        add_free_block(bp); // Add this block to linked list
     }
 
     else if (!prev_alloc && next_alloc) { /* Case 3 */
+        printf("Case 3 occurred!\n");
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
-        PUT(FTRP(bp), PACK(size, 0));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);
+        PUT(FTRP(bp), PACK(size, 0)); //Footer size will be updated
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0)); // New footer size will be updated
+        add_free_block(bp); // Add this block to linked list
     }
 
     else { /* Case 4 */
+        printf("Case 4 occurred!\n");
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0)); // New header size will be updated
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0)); // New footer size will be updated
+        add_free_block(bp);
     }
 
     return bp;
@@ -276,10 +277,11 @@ static void *first_fit(size_t request_size){
     char *curr = heap_listp;
 
     while (curr != (void *) 0){
+        printf("Searching...\n");
         if (GET_SIZE(HDRP(curr)) >= request_size){
             break;
         }
-        curr = GET_NEXT_P(curr);
+        curr = NEXT_P_ADDR(curr);
     }
 
     if (GET_SIZE(HDRP(curr)) < request_size) // cannot find block
@@ -351,6 +353,7 @@ void mm_free(void *bp) {
     size_t size = GET_SIZE(HDRP(bp));
     PUT(HDRP(bp), PACK(size, 0));
     PUT(FTRP(bp), PACK(size, 0));
+    remove_free_block(bp);
     coalesce(bp);
 }
 

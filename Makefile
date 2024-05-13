@@ -5,7 +5,7 @@ TEAM = david61song
 VERSION = 1
 HANDINDIR = handme
 CC = clang
-CFLAGS = -Wall -arch x86_64 -Wno-unused-function -Wno-unused-parameter
+CFLAGS = -Wall -arch x86_64 -Wno-unused-function -Wno-unused-parameter -g
 
 UTILS = mdriver.o memlib.o fsecs.o fcyc.o clock.o ftimer.o
 
