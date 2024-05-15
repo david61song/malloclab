@@ -24,8 +24,6 @@ explicit : $(UTILS) $(EXPLICIT)
 	$(CC) $(CFLAGS) -o mdriver $(UTILS) $(EXPLICIT)
 
 
-# Magical things happens
-#
 mdriver.o: mdriver.c fsecs.h fcyc.h clock.h memlib.h config.h mm.h
 memlib.o: memlib.c memlib.h
 fsecs.o: fsecs.c fsecs.h config.h
@@ -42,6 +40,9 @@ handin:
 
 clean:
 	rm -f *~ *.o mdriver
+
+
+.PHONY: clean handin
 
 
 
