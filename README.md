@@ -61,7 +61,7 @@ To get a list of the driver flags:
 
 # PERF index
 
-## implicit_list
+## implicit_list (mm-naive.c)
 
 ```text
 Team Name:david61song
@@ -88,3 +88,25 @@ Perf index = 44 (util) + 14 (thru) = 58/100
 
 
 ```
+
+## explicit_list (mm-explicit.c)
+
+```text
+Results for mm malloc:
+trace  valid  util     ops      secs  Kops
+ 0       yes   88%    5694  0.000206 27708
+ 1       yes   91%    5848  0.000183 31869
+ 2       yes   94%    6648  0.000269 24723
+ 3       yes   96%    5380  0.000204 26398
+ 4       yes   66%   14400  0.000271 53058
+ 5       yes   88%    4800  0.000371 12935
+ 6       yes   85%    4800  0.000392 12245
+ 7       yes   54%   12000  0.004020  2985
+ 8       yes   48%   24000  0.005462  4394
+ 9       yes   26%   14401  0.044314   325
+10       yes   34%   14401  0.002025  7111
+Total          70%  112372  0.057717  1947
+
+Perf index = 42 (util) + 40 (thru) = 82/100
+```
+
