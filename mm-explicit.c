@@ -3,6 +3,7 @@
  *
  * In this approach
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -52,7 +53,9 @@ team_t team = {
 #define PREV_BP(bp) (void *) (*(uint64_t *)(bp))
 #define NEXT_BP(bp) (void *) (*(uint64_t *)((char *)bp + WSIZE))
 
+/* Set curent bp's next area to (void *) addr */
 #define SET_NEXT(bp, addr) PUT((char *) bp + WSIZE, (uint64_t )addr)
+/* Set curent bp's prev area to (void *) addr */
 #define SET_PREV(bp, addr) PUT(bp, (uint64_t )addr)
 
 /* global variables */
@@ -121,8 +124,8 @@ static void *extend_heap(size_t words)
         return NULL;
 
     PUT(HDRP(bp), PACK(size, 0)); /* New free block header (old epilogue header eliminated) */
-    PUT(bp, 0);                   /* Prev pointer sets to NULL */
-    PUT(bp + WSIZE, 0);           /* Next pointer sets to NULL */
+    SET_NEXT(bp, NULL); /* Set bp's next pointer to NULL */
+    SET_PREV(bp, NULL); /* Set bp's prev pointer to NULL */
     PUT(FTRP(bp), PACK(size, 0)); /* Free block footer (move backward by size), 0 means not allocated!*/
     PUT(HDRP(RIGHT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
 
@@ -136,12 +139,8 @@ static void remove_from_list(void *bp)
     void *prev_bp = PREV_BP(bp);
     void *next_bp = NEXT_BP(bp);
 
-    if (prev_bp != NULL) {
-        SET_NEXT(prev_bp, next_bp);
-    } else {
-        heap_listp = next_bp;
-    }
-
+    SET_NEXT(prev_bp, next_bp);
+    /* if we are not removing last block */
     if (next_bp != NULL) {
         SET_PREV(next_bp, prev_bp);
     }
@@ -156,6 +155,7 @@ static void add_to_list(void *bp)
     SET_NEXT(bp, original_first_elem);
     SET_PREV(bp, heap_listp);
 
+    /* If we not are not adding to first block */
     if (original_first_elem != NULL){
         SET_PREV(original_first_elem, bp);
     }
@@ -203,7 +203,7 @@ static void *coalesce(void *bp)
 static void *first_fit(size_t request_size) {
     void *curr = NEXT_BP(heap_listp);
 
-    while (curr != NULL && CHECK(HDRP(curr)) == 0) {
+    while (curr != NULL) {
         if (GET_SIZE(HDRP(curr)) >= request_size) {
             return curr;
         }
